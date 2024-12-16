@@ -95,7 +95,7 @@ async function S3Signv4(request, env){
 
 	const stringToSign = algorithm + "\n" +
 		timeStampISO8601Format + "\n" +
-		`${timeStamp}/auto/s3/aws4_request` + "\n" +
+		`${timeStamp}/${env.S3_REGION}/s3/aws4_request` + "\n" +
 		SHA256(canonicalRequest).toString(enc.Hex);
 
 
@@ -105,10 +105,10 @@ async function S3Signv4(request, env){
 	const SigningKey = HmacSHA256( apiVersion, DateRegionServiceKey);
 	const Signature = HmacSHA256( stringToSign, SigningKey).toString(enc.Hex);
 
-	const AuthorizationHeader = `Authorization: ${algorithm} ` +
-																		`Credential=${Credential}, ` +
-																		`SignedHeaders=${SignedHeaders}, ` +
-																		`Signature=${Signature}`;
+	// const AuthorizationHeader = `Authorization: ${algorithm} ` +
+	// 																	`Credential=${Credential}, ` +
+	// 																	`SignedHeaders=${SignedHeaders}, ` +
+	// 																	`Signature=${Signature}`;
 	if (authorization[3].split("=").pop() !== Signature)
 		return new Response("S3密钥认证错误", {status:400})
 
@@ -126,7 +126,7 @@ async function UploadImageHandler(request, env){
 
 async function getImageHandler(request, env, ctx){
 		const cache = caches.default;
-		const { pathname } = new URL(request.url);
+		const { pathname, origin } = new URL(request.url);
 		let patharr = pathname.split("/");
 		const prefix = pathname.split("/").slice(0, pathname.split("/").length - 1).join("/");
 		patharr.shift();
@@ -137,7 +137,7 @@ async function getImageHandler(request, env, ctx){
 		// Specify the object key
 		const objectKey = key;
 		if (!objectKey) return new Response("不允许的键", { status: 404 })
-		const result = await env.DB.prepare('SELECT url, fileId FROM media WHERE url = ?').bind(request.url).first();
+		const result = await env.DB.prepare('SELECT url, fileId FROM media WHERE url = ?').bind(origin + pathname).first();
 		if (!result) {
 			 if (!env.enableOriginS3){
 						const notFoundResponse = new Response('资源不存在', { status: 404 });
@@ -287,9 +287,9 @@ async function findInS3(requestUrl, env, objectKey, ctx){
 					pic_data.push(value);
 				}
 				const file = new File(pic_data, objectKey, {type: response.ContentType});
-				ctx.waitUntil(UploadImage(env, file).then((fileId) => {
-
-						env.DB.prepare('INSERT INTO media (url, fileId) VALUES (?, ?) ON CONFLICT(url) DO NOTHING').bind(requestUrl, fileId).run();
+				ctx.waitUntil(UploadImage(env, file).then(async (fileId) => {
+						const {pathname, origin} = new URL(requestUrl);
+						await env.DB.prepare('INSERT INTO media (url, fileId) VALUES (?, ?) ON CONFLICT(url) DO NOTHING').bind(origin + pathname, fileId).run();
 				}))
 				const responseToCache = new Response(file, { status: response.status, headers });
 				await cache.put(cacheKey, responseToCache.clone());
