@@ -41,5 +41,27 @@ database_id = "xxxx-xxxx-xxxx-xxx-xxxxx" # 填入你在cloudflare创建的d1数�
 最后部署即可
 > npx wrangler deploy
 
+# 使用pic-go上传
+默认pic-go使用[picgo-plugin-s3](https://github.com/wayjam/picgo-plugin-s3)
+
+有两种方式
+1. 直接上传至`telegram`
+2. 上传至你的存储桶. 通过worker url访问则会自动回源上传至`telegram`
+
+## 第一种
+填写的配置与你在wrangler中填写的s3配置相同，**不同的是自定义节点与自定义域名和桶名**
+![示例](https://bucket.voidval.com/upload/2024/12/880ae067954c06b380d2de728d0ba078.png)
+
+如图，若你的worker部署域名是`https://bucket.example.com`，你的自定义节点则是`https://example.com`(由于s3 api协议会在example.com前面添加桶的名字)
+
+**这里的桶名是用于指向worker域名的，与你在`wrangler.toml`中填写的无任何关系，`wrangler.toml`中填写的只用于回源，上传只会验证你的key和secret_key是否相同**
+
+## 第二种
+直接上传至你的回源存储桶，worker对应的uri就是你的图片地址,不需要特别操作
+
+如你上传了`/upload/example.png`
+你的worker域名是`bucket1.example.com`
+则你的图片地址就是`https://bucket1.example.com/upload/example.png`
+
 # 致谢
 [telegraph](https://github.com/0-RTT/telegraph)
