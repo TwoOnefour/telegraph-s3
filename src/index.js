@@ -123,6 +123,16 @@ async function UploadImageHandler(request, env){
 	return await S3Signv4(request, env);
 }
 
+async function checkIfNeedUpdate(request, env, ctx){
+	// if db not match, update the cache and reload object from other place
+	const {origin, pathname} = new URL(request.url);
+	const cacheKey = new Request(request.url);
+	const result = await env.DB.prepare('SELECT url, fileId FROM media WHERE url = ?').bind(origin + pathname).first();
+	if (!result){
+		 await caches.default.delete(cacheKey);
+		 await getImageHandler(request, env, ctx); // it won't loop because cache has been deleted;
+	}
+}
 
 async function getImageHandler(request, env, ctx){
 		const cache = caches.default;
@@ -132,7 +142,10 @@ async function getImageHandler(request, env, ctx){
 		patharr.shift();
 		const cacheKey = new Request(request.url);
 		const cachedResponse = await cache.match(cacheKey);
-		if (cachedResponse) return cachedResponse;
+		if (cachedResponse){
+			ctx.waitUntil(checkIfNeedUpdate(request, env, ctx));
+			return cachedResponse;
+		}
 		const key = pathname.substring(1, pathname.length);
 		// Specify the object key
 		const objectKey = key;
@@ -181,7 +194,7 @@ async function getImage(requestUrl, env, fileId){
     return new Response('获取文件内容失败', { status: 500 });
   }
   const fileExtension = requestUrl.split('.').pop().toLowerCase();
-  let contentType = 'text/plain';
+  let contentType = 'text/plain; charset=utf-8;';
   if (fileExtension === 'jpg' || fileExtension === 'jpeg') contentType = 'image/jpeg';
   if (fileExtension === 'png') contentType = 'image/png';
   if (fileExtension === 'gif') contentType = 'image/gif';
