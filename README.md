@@ -15,6 +15,8 @@
 下载`cloudflare wrangler`环境
 > npm install wrangler -g
 
+下载依赖
+> npm install 
 ## wrangler.toml
 编辑`wrangler.toml`
 ```
